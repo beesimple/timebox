@@ -53,9 +53,9 @@ $s = file_exists('settings.json')
       gap: 28px; min-height: 0;
     }
     #display {
-      font-size: clamp(140px, 22vw, 300px);
+      font-size: clamp(160px, 26vw, 340px);
       font-weight: 800; color: #fff; line-height: 1;
-      font-variant-numeric: tabular-nums; letter-spacing: -8px;
+      font-variant-numeric: tabular-nums; letter-spacing: -10px;
       font-family: '<?= htmlspecialchars($s['font']) ?>', sans-serif;
     }
     #display.warning { animation: pulse 0.75s ease-in-out infinite alternate; }
@@ -78,30 +78,30 @@ $s = file_exists('settings.json')
       background: rgba(0,0,0,0.12);
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
-      border-radius: 16px;
-      padding: 13px 20px;
-      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      border-radius: 18px;
+      padding: 16px 24px;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
       flex-shrink: 0;
     }
     .fp-group { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
-    .fp-label { font-size: 10px; font-weight: 600; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.08em; margin-right: 2px; white-space: nowrap; }
+    .fp-label { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.08em; margin-right: 4px; white-space: nowrap; }
     .fp-btn {
-      padding: 7px 13px; border-radius: 20px; border: none;
+      padding: 14px 18px; border-radius: 24px; border: none;
       background: rgba(255,255,255,0.15); color: #fff;
-      font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; white-space: nowrap;
+      font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.15s; white-space: nowrap;
     }
     .fp-btn:hover { background: rgba(255,255,255,0.28); }
-    .fp-divider { width: 1px; height: 24px; background: rgba(255,255,255,0.15); flex-shrink: 0; }
-    .fp-icon-wrap { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .fp-divider { width: 1px; height: 36px; background: rgba(255,255,255,0.15); flex-shrink: 0; }
+    .fp-icon-wrap { display: flex; flex-direction: column; align-items: center; gap: 3px; }
     .fp-icon {
-      width: 34px; height: 34px; border-radius: 10px; border: none;
+      width: 52px; height: 52px; border-radius: 14px; border: none;
       background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.85);
       display: flex; align-items: center; justify-content: center;
       cursor: pointer; transition: all 0.15s;
     }
     .fp-icon:hover { background: rgba(255,255,255,0.25); color: #fff; }
-    .fp-icon svg { width: 15px; height: 15px; }
-    .fp-sub { font-size: 9px; color: rgba(255,255,255,0.4); font-weight: 600; }
+    .fp-icon svg { width: 22px; height: 22px; }
+    .fp-sub { font-size: 11px; color: rgba(255,255,255,0.4); font-weight: 600; }
 
     /* PROGRESS */
     .progress-bar {
@@ -169,6 +169,7 @@ $s = file_exists('settings.json')
       <button class="fp-btn" onclick="addTime(1800)">+30'</button>
       <button class="fp-btn" onclick="addTime(300)">+5'</button>
       <button class="fp-btn" onclick="addTime(60)">+1'</button>
+      <button class="fp-btn" onclick="addTime(30)">+30''</button>
     </div>
 
     <div class="fp-divider"></div>
