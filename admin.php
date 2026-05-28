@@ -62,12 +62,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // ── SAVE ACTIVE SETTINGS ──────────────────────────────────────
     if ($action === 'save_settings') {
         $logo_path = $s['logo_path'];
-        if (!empty($_FILES['logo']['name'])) {
+        if (!empty($_FILES['logo']['name']) && $_FILES['logo']['error'] === UPLOAD_ERR_OK) {
             $ext = strtolower(pathinfo($_FILES['logo']['name'], PATHINFO_EXTENSION));
             if (in_array($ext, ['jpg','jpeg','png','gif','svg','webp'])) {
                 if (!is_dir('uploads')) mkdir('uploads', 0755, true);
-                $fn = 'uploads/' . preg_replace('/[^a-zA-Z0-9._-]/', '_', basename($_FILES['logo']['name']));
-                if (move_uploaded_file($_FILES['logo']['tmp_name'], $fn)) $logo_path = $fn;
+                $safe_name = preg_replace('/[^a-zA-Z0-9._-]/', '_', basename($_FILES['logo']['name']));
+                $fn = 'uploads/' . $safe_name;
+                if (move_uploaded_file($_FILES['logo']['tmp_name'], $fn)) {
+                    $logo_path = $fn;
+                } else {
+                    $error = 'Logo konnte nicht gespeichert werden. Bitte Schreibrechte auf uploads/ prüfen.';
+                }
+            } else {
+                $error = 'Nicht unterstütztes Dateiformat. Erlaubt: PNG, JPG, GIF, SVG, WEBP.';
             }
         }
         if (!empty($_POST['remove_logo'])) $logo_path = '';
@@ -357,18 +364,18 @@ $edit_profile = ($edit_id && isset($profiles[$edit_id])) ? $profiles[$edit_id] :
         <div class="three-colors">
           <div class="color-block">
             <label>Grundfarbe</label>
-            <input type="color" class="color-swatch" value="<?= $s['color_idle'] ?>" oninput="document.getElementById('ci').value=this.value">
-            <input type="text" class="color-hex" name="color_idle" id="ci" value="<?= $s['color_idle'] ?>">
+            <input type="color" class="color-swatch" id="ci_p" value="<?= $s['color_idle'] ?>" oninput="document.getElementById('ci').value=this.value">
+            <input type="text" class="color-hex" name="color_idle" id="ci" value="<?= $s['color_idle'] ?>" oninput="syncPicker(this.value,'ci_p')">
           </div>
           <div class="color-block">
             <label>Letzte Minute</label>
-            <input type="color" class="color-swatch" value="<?= $s['color_warn'] ?>" oninput="document.getElementById('cw').value=this.value">
-            <input type="text" class="color-hex" name="color_warn" id="cw" value="<?= $s['color_warn'] ?>">
+            <input type="color" class="color-swatch" id="cw_p" value="<?= $s['color_warn'] ?>" oninput="document.getElementById('cw').value=this.value">
+            <input type="text" class="color-hex" name="color_warn" id="cw" value="<?= $s['color_warn'] ?>" oninput="syncPicker(this.value,'cw_p')">
           </div>
           <div class="color-block">
             <label>Zeit abgelaufen</label>
-            <input type="color" class="color-swatch" value="<?= $s['color_done'] ?>" oninput="document.getElementById('cd').value=this.value">
-            <input type="text" class="color-hex" name="color_done" id="cd" value="<?= $s['color_done'] ?>">
+            <input type="color" class="color-swatch" id="cd_p" value="<?= $s['color_done'] ?>" oninput="document.getElementById('cd').value=this.value">
+            <input type="text" class="color-hex" name="color_done" id="cd" value="<?= $s['color_done'] ?>" oninput="syncPicker(this.value,'cd_p')">
           </div>
         </div>
       </div>
@@ -535,18 +542,18 @@ $edit_profile = ($edit_id && isset($profiles[$edit_id])) ? $profiles[$edit_id] :
           <div class="three-colors">
             <div class="color-block">
               <label>Grundfarbe</label>
-              <input type="color" class="color-swatch" value="<?= $edit_profile['color_idle']??'#1ac8a0' ?>" oninput="document.getElementById('pci').value=this.value">
-              <input type="text" class="color-hex" name="profile_color_idle" id="pci" value="<?= $edit_profile['color_idle']??'#1ac8a0' ?>">
+              <input type="color" class="color-swatch" id="pci_p" value="<?= $edit_profile['color_idle']??'#1ac8a0' ?>" oninput="document.getElementById('pci').value=this.value">
+              <input type="text" class="color-hex" name="profile_color_idle" id="pci" value="<?= $edit_profile['color_idle']??'#1ac8a0' ?>" oninput="syncPicker(this.value,'pci_p')">
             </div>
             <div class="color-block">
               <label>Letzte Minute</label>
-              <input type="color" class="color-swatch" value="<?= $edit_profile['color_warn']??'#e8833a' ?>" oninput="document.getElementById('pcw').value=this.value">
-              <input type="text" class="color-hex" name="profile_color_warn" id="pcw" value="<?= $edit_profile['color_warn']??'#e8833a' ?>">
+              <input type="color" class="color-swatch" id="pcw_p" value="<?= $edit_profile['color_warn']??'#e8833a' ?>" oninput="document.getElementById('pcw').value=this.value">
+              <input type="text" class="color-hex" name="profile_color_warn" id="pcw" value="<?= $edit_profile['color_warn']??'#e8833a' ?>" oninput="syncPicker(this.value,'pcw_p')">
             </div>
             <div class="color-block">
               <label>Zeit abgelaufen</label>
-              <input type="color" class="color-swatch" value="<?= $edit_profile['color_done']??'#7c3aed' ?>" oninput="document.getElementById('pcd').value=this.value">
-              <input type="text" class="color-hex" name="profile_color_done" id="pcd" value="<?= $edit_profile['color_done']??'#7c3aed' ?>">
+              <input type="color" class="color-swatch" id="pcd_p" value="<?= $edit_profile['color_done']??'#7c3aed' ?>" oninput="document.getElementById('pcd').value=this.value">
+              <input type="text" class="color-hex" name="profile_color_done" id="pcd" value="<?= $edit_profile['color_done']??'#7c3aed' ?>" oninput="syncPicker(this.value,'pcd_p')">
             </div>
           </div>
         </div>
@@ -584,8 +591,18 @@ function showTab(name) {
   document.getElementById('tab-' + name).classList.add('active');
   event.target.classList.add('active');
 }
+
+function syncPicker(val, pickerId) {
+  if (/^#[0-9a-fA-F]{6}$/.test(val)) {
+    document.getElementById(pickerId).value = val;
+  }
+}
 <?php if ($edit_id): ?>
-document.addEventListener('DOMContentLoaded', () => showTab('profiles'));
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.tab')[1].classList.add('active');
+  document.querySelectorAll('.tab')[0].classList.remove('active');
+  showTab('profiles');
+});
 <?php endif; ?>
 </script>
 </body>
