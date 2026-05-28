@@ -5,6 +5,7 @@ $defaults = [
     'color_idle'    => '#1ac8a0',
     'color_warn'    => '#e8833a',
     'color_done'    => '#7c3aed',
+    'text_color'    => '#ffffff',
     'default_sound' => 'gong',
     'show_presets'  => true,
     'preset_times'  => [5, 15, 25, 45, 60],
@@ -42,9 +43,9 @@ $s = file_exists('settings.json')
     }
     .logo-wrap { display: flex; align-items: center; gap: 12px; }
     .logo-wrap img { height: 60px; object-fit: contain; }
-    .logo-title { font-size: 22px; font-weight: 800; color: rgba(255,255,255,0.85); letter-spacing: -0.5px; }
-    .tb-admin { font-size: 20px; color: rgba(255,255,255,0.3); text-decoration: none; transition: color 0.15s; }
-    .tb-admin:hover { color: rgba(255,255,255,0.9); }
+    .logo-title { font-size: 22px; font-weight: 800; color: <?= htmlspecialchars($s['text_color']) ?>; letter-spacing: -0.5px; }
+    .tb-admin { font-size: 20px; color: <?= $s['text_color'] === '#ffffff' ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)' ?>; text-decoration: none; transition: color 0.15s; }
+    .tb-admin:hover { color: <?= htmlspecialchars($s['text_color']) ?>; }
 
     /* TIMER AREA */
     .timer-area {
@@ -54,7 +55,7 @@ $s = file_exists('settings.json')
     }
     #display {
       font-size: clamp(160px, 26vw, 340px);
-      font-weight: 800; color: #fff; line-height: 1;
+      font-weight: 800; color: <?= htmlspecialchars($s['text_color']) ?>; line-height: 1;
       font-variant-numeric: tabular-nums; letter-spacing: -10px;
       font-family: '<?= htmlspecialchars($s['font']) ?>', sans-serif;
     }
@@ -63,7 +64,7 @@ $s = file_exists('settings.json')
 
     #startBtn {
       width: 96px; height: 96px; border-radius: 50%;
-      background: #fff; border: none; cursor: pointer;
+      background: <?= htmlspecialchars($s['text_color']) ?>; border: none; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
       box-shadow: 0 8px 32px rgba(0,0,0,0.15);
       transition: all 0.15s; flex-shrink: 0;
@@ -84,24 +85,24 @@ $s = file_exists('settings.json')
       flex-shrink: 0;
     }
     .fp-group { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
-    .fp-label { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.08em; margin-right: 4px; white-space: nowrap; }
+    .fp-label { font-size: 11px; font-weight: 600; color: <?= $s['text_color'] === '#ffffff' ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.35)' ?>; text-transform: uppercase; letter-spacing: 0.08em; margin-right: 4px; white-space: nowrap; }
     .fp-btn {
       padding: 14px 18px; border-radius: 24px; border: none;
-      background: rgba(255,255,255,0.15); color: #fff;
+      background: <?= $s['text_color'] === '#ffffff' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)' ?>; color: <?= htmlspecialchars($s['text_color']) ?>;
       font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.15s; white-space: nowrap;
     }
-    .fp-btn:hover { background: rgba(255,255,255,0.28); }
-    .fp-divider { width: 1px; height: 36px; background: rgba(255,255,255,0.15); flex-shrink: 0; }
+    .fp-btn:hover { background: <?= $s['text_color'] === '#ffffff' ? 'rgba(255,255,255,0.28)' : 'rgba(0,0,0,0.2)' ?>; }
+    .fp-divider { width: 1px; height: 36px; background: <?= $s['text_color'] === '#ffffff' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)' ?>; flex-shrink: 0; }
     .fp-icon-wrap { display: flex; flex-direction: column; align-items: center; gap: 3px; }
     .fp-icon {
       width: 52px; height: 52px; border-radius: 14px; border: none;
-      background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.85);
+      background: <?= $s['text_color'] === '#ffffff' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)' ?>; color: <?= htmlspecialchars($s['text_color']) ?>;
       display: flex; align-items: center; justify-content: center;
       cursor: pointer; transition: all 0.15s;
     }
-    .fp-icon:hover { background: rgba(255,255,255,0.25); color: #fff; }
+    .fp-icon:hover { background: <?= $s['text_color'] === '#ffffff' ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.2)' ?>; }
     .fp-icon svg { width: 22px; height: 22px; }
-    .fp-sub { font-size: 11px; color: rgba(255,255,255,0.4); font-weight: 600; }
+    .fp-sub { font-size: 11px; color: <?= $s['text_color'] === '#ffffff' ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.35)' ?>; font-weight: 600; }
 
     /* PROGRESS */
     .progress-bar {

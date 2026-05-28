@@ -8,6 +8,7 @@ function defaults() {
         'color_idle'    => '#1ac8a0',
         'color_warn'    => '#e8833a',
         'color_done'    => '#7c3aed',
+        'text_color'    => '#ffffff',
         'default_sound' => 'gong',
         'show_presets'  => true,
         'preset_times'  => [5, 15, 25, 45, 60],
@@ -79,6 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'color_idle'    => $_POST['color_idle'] ?? '#1ac8a0',
             'color_warn'    => $_POST['color_warn'] ?? '#e8833a',
             'color_done'    => $_POST['color_done'] ?? '#7c3aed',
+            'text_color'    => $_POST['text_color'] ?? '#ffffff',
             'default_sound' => $_POST['default_sound'] ?? 'gong',
             'show_presets'  => isset($_POST['show_presets']),
             'preset_times'  => $pts,
@@ -150,6 +152,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'color_idle'    => $_POST['profile_color_idle'] ?? '#1ac8a0',
                 'color_warn'    => $_POST['profile_color_warn'] ?? '#e8833a',
                 'color_done'    => $_POST['profile_color_done'] ?? '#7c3aed',
+                'text_color'    => $_POST['profile_text_color'] ?? '#ffffff',
                 'default_sound' => $_POST['profile_default_sound'] ?? 'gong',
                 'show_presets'  => isset($_POST['profile_show_presets']),
                 'preset_times'  => $pts,
@@ -336,6 +339,21 @@ $edit_profile = ($edit_id && isset($profiles[$edit_id])) ? $profiles[$edit_id] :
 
       <div class="card">
         <div class="card-title">Farben</div>
+        <div class="field">
+          <label>Schriftfarbe</label>
+          <div style="display:flex;gap:10px;">
+            <label style="display:flex;align-items:center;gap:8px;padding:10px 18px;border-radius:10px;border:2px solid <?= $s['text_color']==='#ffffff' ? '#1ac8a0' : 'rgba(0,0,0,0.1)' ?>;cursor:pointer;background:<?= $s['text_color']==='#ffffff' ? '#f0fdf9' : '#fff' ?>;">
+              <input type="radio" name="text_color" value="#ffffff" <?= $s['text_color']==='#ffffff' ? 'checked' : '' ?> style="width:16px;height:16px;">
+              <span style="width:20px;height:20px;border-radius:50%;background:#fff;border:2px solid #ddd;display:inline-block;"></span>
+              <span style="font-size:14px;font-weight:500;">Hell (weiss)</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;padding:10px 18px;border-radius:10px;border:2px solid <?= $s['text_color']==='#444444' ? '#1ac8a0' : 'rgba(0,0,0,0.1)' ?>;cursor:pointer;background:<?= $s['text_color']==='#444444' ? '#f0fdf9' : '#fff' ?>;">
+              <input type="radio" name="text_color" value="#444444" <?= $s['text_color']==='#444444' ? 'checked' : '' ?> style="width:16px;height:16px;">
+              <span style="width:20px;height:20px;border-radius:50%;background:#444;border:2px solid #ddd;display:inline-block;"></span>
+              <span style="font-size:14px;font-weight:500;">Dunkel (grau)</span>
+            </label>
+          </div>
+        </div>
         <div class="three-colors">
           <div class="color-block">
             <label>Grundfarbe</label>
@@ -499,6 +517,21 @@ $edit_profile = ($edit_id && isset($profiles[$edit_id])) ? $profiles[$edit_id] :
 
         <div class="card">
           <div class="card-title">Farben</div>
+          <div class="field">
+            <label>Schriftfarbe</label>
+            <div style="display:flex;gap:10px;">
+              <label style="display:flex;align-items:center;gap:8px;padding:10px 18px;border-radius:10px;border:1px solid rgba(0,0,0,0.1);cursor:pointer;">
+                <input type="radio" name="profile_text_color" value="#ffffff" <?= ($edit_profile['text_color']??'#ffffff')==='#ffffff' ? 'checked' : '' ?> style="width:16px;height:16px;">
+                <span style="width:20px;height:20px;border-radius:50%;background:#fff;border:2px solid #ddd;display:inline-block;"></span>
+                <span style="font-size:14px;font-weight:500;">Hell</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;padding:10px 18px;border-radius:10px;border:1px solid rgba(0,0,0,0.1);cursor:pointer;">
+                <input type="radio" name="profile_text_color" value="#444444" <?= ($edit_profile['text_color']??'#ffffff')==='#444444' ? 'checked' : '' ?> style="width:16px;height:16px;">
+                <span style="width:20px;height:20px;border-radius:50%;background:#444;border:2px solid #ddd;display:inline-block;"></span>
+                <span style="font-size:14px;font-weight:500;">Dunkel</span>
+              </label>
+            </div>
+          </div>
           <div class="three-colors">
             <div class="color-block">
               <label>Grundfarbe</label>
