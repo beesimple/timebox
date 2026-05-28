@@ -14,6 +14,7 @@ function defaults() {
         'preset_times'  => [5, 15, 25, 45, 60],
         'logo_path'     => '',
         'password'      => '',
+        'active_id'     => '',
     ];
 }
 
@@ -29,137 +30,132 @@ function load_profiles() {
         : [];
 }
 
-function save_profiles($profiles) {
-    file_put_contents('profiles.json', json_encode($profiles, JSON_PRETTY_PRINT));
+function save_profiles($p) {
+    file_put_contents('profiles.json', json_encode($p, JSON_PRETTY_PRINT));
 }
 
-function save_settings($data) {
-    file_put_contents('settings.json', json_encode($data, JSON_PRETTY_PRINT));
+function save_settings($d) {
+    file_put_contents('settings.json', json_encode($d, JSON_PRETTY_PRINT));
 }
 
-function upload_logo($file_key) {
-    if (empty($_FILES[$file_key]['name'])) return null;
-    $err = $_FILES[$file_key]['error'];
-    if ($err !== UPLOAD_ERR_OK) {
-        // Debug: write error to a log
-        $codes = [1=>'zu gross (php.ini)',2=>'zu gross (form)',3=>'unvollstaendig',4=>'keine Datei',6=>'kein tmp',7=>'Schreibfehler'];
-        file_put_contents('upload_debug.txt', date('H:i:s') . ' Fehler: ' . ($codes[$err] ?? $err) . "\n", FILE_APPEND);
-        return null;
-    }
-    $ext = strtolower(pathinfo($_FILES[$file_key]['name'], PATHINFO_EXTENSION));
-    if (!in_array($ext, ['jpg','jpeg','png','gif','svg','webp'])) {
-        file_put_contents('upload_debug.txt', date('H:i:s') . ' Falsches Format: ' . $ext . "\n", FILE_APPEND);
-        return null;
-    }
+function upload_logo($key) {
+    if (empty($_FILES[$key]['name']) || $_FILES[$key]['error'] !== UPLOAD_ERR_OK) return false;
+    $ext = strtolower(pathinfo($_FILES[$key]['name'], PATHINFO_EXTENSION));
+    if (!in_array($ext, ['jpg','jpeg','png','gif','svg','webp'])) return false;
     if (!is_dir('uploads')) mkdir('uploads', 0755, true);
-    $fn = 'uploads/' . preg_replace('/[^a-zA-Z0-9._-]/', '_', basename($_FILES[$file_key]['name']));
-    $ok = move_uploaded_file($_FILES[$file_key]['tmp_name'], $fn);
-    file_put_contents('upload_debug.txt', date('H:i:s') . ' Upload ' . ($ok ? 'OK: '.$fn : 'FEHLER') . "\n", FILE_APPEND);
-    return $ok ? $fn : null;
+    $fn = 'uploads/' . preg_replace('/[^a-zA-Z0-9._-]/', '_', basename($_FILES[$key]['name']));
+    return move_uploaded_file($_FILES[$key]['tmp_name'], $fn) ? $fn : false;
 }
 
-function fields_from_post($prefix = '') {
-    $p = $prefix;
-    $raw = $_POST[$p.'preset_times'] ?? '5,15,25,45,60';
+function profile_from_post() {
+    $raw = $_POST['preset_times'] ?? '5,15,25,45,60';
     $pts = array_values(array_filter(array_map('intval', explode(',', $raw))));
     if (empty($pts)) $pts = [5,15,25,45,60];
     return [
-        'title'         => trim($_POST[$p.'title'] ?? 'Timebox'),
-        'font'          => $_POST[$p.'font'] ?? 'Inter',
-        'color_idle'    => $_POST[$p.'color_idle'] ?? '#1ac8a0',
-        'color_warn'    => $_POST[$p.'color_warn'] ?? '#e8833a',
-        'color_done'    => $_POST[$p.'color_done'] ?? '#7c3aed',
-        'text_color'    => $_POST[$p.'text_color'] ?? '#ffffff',
-        'default_sound' => $_POST[$p.'default_sound'] ?? 'gong',
-        'show_presets'  => isset($_POST[$p.'show_presets']),
+        'name'          => trim($_POST['name'] ?? 'Profil'),
+        'title'         => trim($_POST['title'] ?? 'Timebox'),
+        'font'          => $_POST['font'] ?? 'Inter',
+        'color_idle'    => $_POST['color_idle'] ?? '#1ac8a0',
+        'color_warn'    => $_POST['color_warn'] ?? '#e8833a',
+        'color_done'    => $_POST['color_done'] ?? '#7c3aed',
+        'text_color'    => $_POST['text_color'] ?? '#ffffff',
+        'default_sound' => $_POST['default_sound'] ?? 'gong',
+        'show_presets'  => isset($_POST['show_presets']),
         'preset_times'  => $pts,
     ];
 }
 
 $s        = load_settings();
 $profiles = load_profiles();
-$error    = '';
-$success  = '';
-$action   = $_POST['action'] ?? $_GET['action'] ?? '';
+$msg      = '';
+$err      = '';
+$action   = $_POST['action'] ?? '';
 
-// Password check
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!empty($s['password']) && ($_POST['admin_password'] ?? '') !== $s['password']) {
-        $error = 'Falsches Passwort.';
+        $err = 'Falsches Passwort.';
         goto render;
     }
 
-    // ── SAVE ACTIVE SETTINGS ─────────────────────────────────────
-    if ($action === 'save_settings') {
-        $logo = upload_logo('logo');
-        $data = fields_from_post();
-        $data['logo_path'] = $logo ?? (empty($_POST['remove_logo']) ? $s['logo_path'] : '');
-        $data['password']  = $_POST['password'] ?? $s['password'];
-        save_settings($data);
-        header('Location: admin.php?tab=settings&saved=1');
-        exit;
-    }
-
-    // ── NEW EMPTY PROFILE ─────────────────────────────────────────
+    // Neues leeres Profil
     if ($action === 'new_profile') {
         $id = 'p_' . time() . '_' . rand(100,999);
-        $profile = defaults();
-        $profile['name'] = 'Neues Profil';
-        unset($profile['password']);
-        $profiles[$id] = $profile;
+        $profiles[$id] = array_merge(defaults(), ['name' => 'Neues Profil']);
+        unset($profiles[$id]['password'], $profiles[$id]['active_id']);
         save_profiles($profiles);
-        header('Location: admin.php?tab=profiles&edit=' . $id);
+        header('Location: admin.php?edit=' . $id);
         exit;
     }
 
-    // ── SAVE PROFILE ─────────────────────────────────────────────
+    // Profil speichern
     if ($action === 'save_profile') {
         $id = $_POST['profile_id'] ?? '';
-        if (!isset($profiles[$id])) { $error = 'Profil nicht gefunden.'; goto render; }
-        $logo = upload_logo('profile_logo');
-        $data = fields_from_post('p_');
-        $data['name']      = trim($_POST['p_name'] ?? 'Profil');
-        $data['logo_path'] = $logo ?? (empty($_POST['remove_profile_logo']) ? ($profiles[$id]['logo_path'] ?? '') : '');
+        if (!isset($profiles[$id])) { $err = 'Profil nicht gefunden.'; goto render; }
+        $data = profile_from_post();
+        $logo = upload_logo('logo');
+        if ($logo !== false) {
+            $data['logo_path'] = $logo;
+        } else {
+            $data['logo_path'] = empty($_POST['remove_logo'])
+                ? ($profiles[$id]['logo_path'] ?? '')
+                : '';
+        }
         $profiles[$id] = $data;
         save_profiles($profiles);
-        $success = 'Profil gespeichert.';
-        header('Location: admin.php?tab=profiles&saved=1');
+        // Falls dieses Profil aktiv ist, settings auch updaten
+        if ($s['active_id'] === $id) {
+            $new = array_merge($data, ['password' => $s['password'], 'active_id' => $id]);
+            save_settings($new);
+        }
+        header('Location: admin.php?saved=1');
         exit;
     }
 
-    // ── ACTIVATE PROFILE ─────────────────────────────────────────
-    if ($action === 'activate_profile') {
+    // Profil aktivieren
+    if ($action === 'activate') {
         $id = $_POST['profile_id'] ?? '';
         if (isset($profiles[$id])) {
-            $data = array_merge(defaults(), $profiles[$id]);
-            $data['password'] = $s['password'];
-            save_settings($data);
+            $new = array_merge(defaults(), $profiles[$id], [
+                'password'  => $s['password'],
+                'active_id' => $id,
+            ]);
+            save_settings($new);
         }
-        header('Location: admin.php?tab=profiles&saved=1');
+        header('Location: admin.php?activated=1');
         exit;
     }
 
-    // ── DELETE PROFILE ────────────────────────────────────────────
+    // Profil löschen
     if ($action === 'delete_profile') {
         $id = $_POST['profile_id'] ?? '';
         if (isset($profiles[$id])) {
             unset($profiles[$id]);
             save_profiles($profiles);
+            if ($s['active_id'] === $id) {
+                $s['active_id'] = '';
+                save_settings($s);
+            }
         }
-        header('Location: admin.php?tab=profiles');
+        header('Location: admin.php');
         exit;
     }
 
-    $profiles = load_profiles();
+    // Passwort ändern
+    if ($action === 'save_password') {
+        $s['password'] = $_POST['new_password'] ?? '';
+        save_settings($s);
+        header('Location: admin.php?saved=1');
+        exit;
+    }
 }
 
 render:
-$active_tab = $_GET['tab'] ?? 'settings';
-$edit_id    = $_GET['edit'] ?? null;
-$edit_p     = ($edit_id && isset($profiles[$edit_id])) ? $profiles[$edit_id] : null;
-if ($_GET['saved'] ?? false) {
-    $success = $active_tab === 'profiles' ? 'Profil gespeichert.' : 'Einstellungen gespeichert.';
-}
+$s        = load_settings();
+$profiles = load_profiles();
+$edit_id  = $_GET['edit'] ?? null;
+$edit_p   = ($edit_id && isset($profiles[$edit_id])) ? $profiles[$edit_id] : null;
+if ($_GET['saved'] ?? false)     $msg = 'Gespeichert.';
+if ($_GET['activated'] ?? false) $msg = 'Profil aktiviert – Timer läuft jetzt damit.';
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -170,70 +166,62 @@ if ($_GET['saved'] ?? false) {
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f0efeb; color: #1a1a1a; min-height: 100vh; padding: 40px 20px; }
-    .wrap { max-width: 680px; margin: 0 auto; }
+    .wrap { max-width: 660px; margin: 0 auto; }
     header { display: flex; align-items: center; margin-bottom: 28px; }
     header h1 { font-size: 20px; font-weight: 600; }
     header a { margin-left: auto; font-size: 13px; color: #888; text-decoration: none; }
     header a:hover { color: #333; }
-    .tabs { display: flex; gap: 4px; margin-bottom: 24px; background: rgba(0,0,0,0.06); padding: 4px; border-radius: 12px; }
-    .tab { flex: 1; padding: 10px; border-radius: 9px; border: none; background: transparent; font-size: 14px; font-weight: 500; color: #666; cursor: pointer; transition: all 0.15s; text-align: center; text-decoration: none; display: block; }
-    .tab.active { background: #fff; color: #1a1a1a; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
-    .tab-content { display: none; }
-    .tab-content.active { display: block; }
-    .card { background: #fff; border-radius: 14px; border: 1px solid rgba(0,0,0,0.07); padding: 24px; margin-bottom: 14px; }
-    .card-title { font-size: 11px; font-weight: 600; color: #999; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 18px; }
-    .field { margin-bottom: 16px; }
+    .alert-ok  { background: #e8f5e9; color: #2e7d32; padding: 12px 16px; border-radius: 9px; font-size: 14px; margin-bottom: 20px; }
+    .alert-err { background: #fdecea; color: #c62828; padding: 12px 16px; border-radius: 9px; font-size: 14px; margin-bottom: 20px; }
+    .card { background: #fff; border-radius: 14px; border: 1px solid rgba(0,0,0,0.07); padding: 22px; margin-bottom: 14px; }
+    .card-title { font-size: 11px; font-weight: 600; color: #999; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 16px; }
+    .field { margin-bottom: 14px; }
     .field:last-child { margin-bottom: 0; }
-    label { display: block; font-size: 13px; color: #555; margin-bottom: 6px; }
+    label { display: block; font-size: 13px; color: #555; margin-bottom: 5px; }
     input[type=text], input[type=password], select {
-      width: 100%; padding: 10px 12px; border-radius: 9px;
-      border: 1px solid rgba(0,0,0,0.13); font-size: 14px;
-      color: #1a1a1a; background: #fff; outline: none; transition: border-color 0.15s;
+      width: 100%; padding: 9px 12px; border-radius: 9px;
+      border: 1px solid rgba(0,0,0,0.13); font-size: 14px; color: #1a1a1a;
+      background: #fff; outline: none; transition: border-color 0.15s;
     }
     input:focus, select:focus { border-color: #888; }
-    .three-colors { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
-    .color-block label { font-size: 12px; color: #777; margin-bottom: 6px; }
-    .color-swatch { width: 100%; height: 48px; border-radius: 9px; border: 1px solid rgba(0,0,0,0.1); cursor: pointer; margin-bottom: 6px; display: block; }
-    .color-hex { width: 100%; padding: 7px 10px; border-radius: 7px; border: 1px solid rgba(0,0,0,0.13); font-size: 13px; text-align: center; }
-    .check-row { display: flex; align-items: center; gap: 10px; font-size: 14px; cursor: pointer; }
-    .check-row input { width: 16px; height: 16px; cursor: pointer; }
+    .three-colors { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+    .color-block label { font-size: 12px; color: #777; margin-bottom: 5px; }
+    .color-swatch { width: 100%; height: 44px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.1); cursor: pointer; margin-bottom: 5px; display: block; }
+    .color-hex { width: 100%; padding: 6px 10px; border-radius: 7px; border: 1px solid rgba(0,0,0,0.13); font-size: 13px; text-align: center; }
+    .check-row { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+    .check-row input { width: 16px; height: 16px; }
     .hint { font-size: 11px; color: #bbb; margin-top: 4px; }
-    .logo-preview { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
-    .logo-preview img { height: 40px; border-radius: 4px; border: 1px solid rgba(0,0,0,0.09); }
+    .logo-preview { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+    .logo-preview img { height: 36px; border-radius: 4px; border: 1px solid rgba(0,0,0,0.09); }
     .rm-logo { font-size: 12px; color: #c0392b; background: none; border: none; cursor: pointer; }
-    .alert { padding: 12px 16px; border-radius: 9px; font-size: 14px; margin-bottom: 18px; }
-    .ok  { background: #e8f5e9; color: #2e7d32; }
-    .err { background: #fdecea; color: #c62828; }
-    .actions { display: flex; align-items: center; gap: 12px; margin-top: 6px; flex-wrap: wrap; }
-    .btn { padding: 11px 24px; border-radius: 10px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity 0.15s; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+    input[type=file] { font-size: 13px; color: #555; }
+    .text-mode-row { display: flex; gap: 10px; }
+    .text-mode-label { display: flex; align-items: center; gap: 8px; padding: 9px 16px; border-radius: 9px; border: 1.5px solid rgba(0,0,0,0.1); cursor: pointer; font-size: 14px; font-weight: 500; }
+    .text-mode-label input { width: 15px; height: 15px; }
+    .color-dot { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #ddd; flex-shrink: 0; }
+    .actions { display: flex; gap: 10px; align-items: center; margin-top: 4px; flex-wrap: wrap; }
+    .btn { padding: 10px 22px; border-radius: 9px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; transition: opacity 0.15s; }
+    .btn:hover { opacity: 0.85; }
     .btn-dark   { background: #1a1a1a; color: #fff; }
-    .btn-dark:hover { opacity: 0.8; }
     .btn-green  { background: #1ac8a0; color: #fff; }
-    .btn-green:hover { opacity: 0.85; }
     .btn-outline { background: transparent; border: 1px solid rgba(0,0,0,0.2); color: #333; }
-    .btn-outline:hover { background: rgba(0,0,0,0.04); }
-    .btn-red    { background: #c0392b; color: #fff; }
-    .btn-red:hover { opacity: 0.85; }
+    .btn-red    { background: #e74c3c; color: #fff; }
     .btn-sm { padding: 7px 14px; font-size: 13px; border-radius: 8px; }
+    .back-link { font-size: 13px; color: #888; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; margin-bottom: 18px; }
+    .back-link:hover { color: #333; }
     .preview-link { font-size: 13px; color: #999; text-decoration: none; }
     .preview-link:hover { color: #333; }
-    input[type=file] { font-size: 13px; color: #555; }
-    .profile-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
-    .profile-item { background: #fff; border-radius: 12px; border: 1px solid rgba(0,0,0,0.07); padding: 16px 20px; display: flex; align-items: center; gap: 14px; }
-    .profile-item.is-active { border-color: #1ac8a0; background: #f0fdf9; }
-    .profile-dots { display: flex; gap: 5px; flex-shrink: 0; }
-    .profile-dot { width: 14px; height: 14px; border-radius: 50%; }
-    .profile-info { flex: 1; min-width: 0; }
-    .profile-name { font-size: 15px; font-weight: 600; }
-    .profile-meta { font-size: 12px; color: #aaa; margin-top: 2px; }
-    .active-badge { font-size: 11px; font-weight: 600; color: #1ac8a0; background: #e0faf3; padding: 3px 8px; border-radius: 20px; flex-shrink: 0; }
-    .profile-actions { display: flex; gap: 8px; flex-shrink: 0; }
-    .back-link { font-size: 13px; color: #888; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; margin-bottom: 20px; }
-    .back-link:hover { color: #333; }
-    .text-mode-row { display: flex; gap: 10px; }
-    .text-mode-label { display: flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 10px; border: 1.5px solid rgba(0,0,0,0.1); cursor: pointer; font-size: 14px; font-weight: 500; transition: border-color 0.15s; }
-    .text-mode-label input { width: 16px; height: 16px; cursor: pointer; }
-    .color-dot { width: 20px; height: 20px; border-radius: 50%; border: 2px solid #ddd; flex-shrink: 0; }
+    /* Profile list */
+    .profile-list { display: flex; flex-direction: column; gap: 10px; }
+    .profile-item { background: #fff; border-radius: 12px; border: 2px solid transparent; padding: 16px 18px; display: flex; align-items: center; gap: 14px; }
+    .profile-item.active { border-color: #1ac8a0; background: #f0fdf9; }
+    .p-dots { display: flex; gap: 5px; flex-shrink: 0; }
+    .p-dot { width: 13px; height: 13px; border-radius: 50%; }
+    .p-info { flex: 1; }
+    .p-name { font-size: 15px; font-weight: 600; }
+    .p-meta { font-size: 12px; color: #aaa; margin-top: 2px; }
+    .p-badge { font-size: 11px; font-weight: 600; color: #1ac8a0; background: #e0faf3; padding: 3px 8px; border-radius: 20px; }
+    .p-actions { display: flex; gap: 7px; flex-shrink: 0; }
   </style>
 </head>
 <body>
@@ -243,246 +231,188 @@ if ($_GET['saved'] ?? false) {
     <a href="index.php">← Zum Timer</a>
   </header>
 
-  <?php if ($success): ?><div class="alert ok">✓ <?= htmlspecialchars($success) ?></div><?php endif; ?>
-  <?php if ($error):   ?><div class="alert err">✗ <?= htmlspecialchars($error) ?></div><?php endif; ?>
+  <?php if ($msg): ?><div class="alert-ok">✓ <?= htmlspecialchars($msg) ?></div><?php endif; ?>
+  <?php if ($err): ?><div class="alert-err">✗ <?= htmlspecialchars($err) ?></div><?php endif; ?>
 
-  <?php if (!empty($s['password'])): ?>
-  <form method="POST" style="margin-bottom:20px;">
-    <input type="hidden" name="action" value="check_pw">
-    <div style="display:flex;gap:10px;">
-      <input type="password" name="admin_password" placeholder="Admin-Passwort" style="max-width:280px;">
-      <button type="submit" class="btn btn-dark btn-sm">Anmelden</button>
+  <?php if ($edit_id && $edit_p): ?>
+  <!-- ══════════════ PROFIL BEARBEITEN ══════════════ -->
+  <a href="admin.php" class="back-link">← Zurück</a>
+  <form method="POST" enctype="multipart/form-data">
+    <input type="hidden" name="action" value="save_profile">
+    <input type="hidden" name="profile_id" value="<?= $edit_id ?>">
+    <?php if (!empty($s['password'])): ?>
+      <input type="hidden" name="admin_password" value="">
+    <?php endif; ?>
+
+    <div class="card">
+      <div class="card-title">Profilname</div>
+      <input type="text" name="name" value="<?= htmlspecialchars($edit_p['name'] ?? '') ?>" placeholder="z.B. Edulab Workshop" autofocus>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Branding</div>
+      <div class="field">
+        <label>App-Titel (erscheint oben links)</label>
+        <input type="text" name="title" value="<?= htmlspecialchars($edit_p['title'] ?? 'Timebox') ?>">
+      </div>
+      <div class="field">
+        <label>Logo</label>
+        <input type="file" name="logo" accept=".png,.jpg,.jpeg,.gif,.svg,.webp">
+        <?php if (!empty($edit_p['logo_path'])): ?>
+        <div class="logo-preview" id="lprev">
+          <img src="<?= htmlspecialchars($edit_p['logo_path']) ?>" alt="Logo">
+          <button type="button" class="rm-logo" onclick="document.getElementById('rl').value='1';document.getElementById('lprev').remove();">✕ entfernen</button>
+        </div>
+        <?php endif; ?>
+        <input type="hidden" name="remove_logo" id="rl" value="">
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Schrift & Ton</div>
+      <div class="field">
+        <label>Schriftart</label>
+        <select name="font">
+          <?php foreach (['Inter'=>'Modern (Inter)','Bebas Neue'=>'Block','Space Mono'=>'Mono','Syne'=>'Syne'] as $v=>$l): ?>
+          <option value="<?= $v ?>" <?= ($edit_p['font']??'Inter')===$v?'selected':'' ?>><?= $l ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="field">
+        <label>Ton beim Ablauf</label>
+        <select name="default_sound">
+          <?php foreach (['gong'=>'Gong','bell'=>'Indian Bell','bowl'=>'Singing Bowl','off'=>'Kein Ton'] as $v=>$l): ?>
+          <option value="<?= $v ?>" <?= ($edit_p['default_sound']??'gong')===$v?'selected':'' ?>><?= $l ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Farben</div>
+      <div class="field">
+        <label>Schriftfarbe</label>
+        <div class="text-mode-row">
+          <label class="text-mode-label">
+            <input type="radio" name="text_color" value="#ffffff" <?= (($edit_p['text_color']??'#ffffff')==='#ffffff')?'checked':'' ?>>
+            <span class="color-dot" style="background:#fff;"></span> Hell
+          </label>
+          <label class="text-mode-label">
+            <input type="radio" name="text_color" value="#444444" <?= (($edit_p['text_color']??'')==='#444444')?'checked':'' ?>>
+            <span class="color-dot" style="background:#444;"></span> Dunkel
+          </label>
+        </div>
+      </div>
+      <div class="three-colors">
+        <?php
+        $cols = [
+          ['color_idle','ci','Grundfarbe',$edit_p['color_idle']??'#1ac8a0'],
+          ['color_warn','cw','Letzte Minute',$edit_p['color_warn']??'#e8833a'],
+          ['color_done','cd','Zeit abgelaufen',$edit_p['color_done']??'#7c3aed'],
+        ];
+        foreach ($cols as [$name,$id,$lbl,$val]):
+        ?>
+        <div class="color-block">
+          <label><?= $lbl ?></label>
+          <input type="color" class="color-swatch" id="<?= $id ?>_p" value="<?= $val ?>"
+            oninput="document.getElementById('<?= $id ?>').value=this.value">
+          <input type="text" class="color-hex" name="<?= $name ?>" id="<?= $id ?>" value="<?= $val ?>"
+            oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value))document.getElementById('<?= $id ?>_p').value=this.value">
+        </div>
+        <?php endforeach; ?>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Timer-Optionen</div>
+      <div class="field">
+        <label class="check-row">
+          <input type="checkbox" name="show_presets" <?= !empty($edit_p['show_presets'])?'checked':'' ?>>
+          Preset-Buttons anzeigen
+        </label>
+      </div>
+      <div class="field">
+        <label>Preset-Zeiten (Minuten, kommagetrennt)</label>
+        <input type="text" name="preset_times" value="<?= implode(',', $edit_p['preset_times']??[5,15,25,45,60]) ?>">
+        <p class="hint">z.B. 5,15,25,45,60</p>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button type="submit" class="btn btn-dark">Profil speichern</button>
+      <a href="admin.php" class="preview-link">Abbrechen</a>
     </div>
   </form>
-  <?php endif; ?>
 
-  <!-- TABS -->
-  <div class="tabs">
-    <a href="admin.php?tab=settings" class="tab <?= $active_tab==='settings'&&!$edit_id ? 'active' : '' ?>">Einstellungen</a>
-    <a href="admin.php?tab=profiles" class="tab <?= $active_tab==='profiles'||$edit_id ? 'active' : '' ?>">Profile (<?= count($profiles) ?>)</a>
-  </div>
-
-  <!-- ═══════════════ TAB: EINSTELLUNGEN ═══════════════ -->
-  <div class="tab-content <?= $active_tab==='settings'&&!$edit_id ? 'active' : '' ?>">
-    <form method="POST" enctype="multipart/form-data">
-      <input type="hidden" name="action" value="save_settings">
+  <?php else: ?>
+  <!-- ══════════════ PROFILLISTE ══════════════ -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+    <div style="font-size:15px;font-weight:600;">Profile</div>
+    <form method="POST">
+      <input type="hidden" name="action" value="new_profile">
       <?php if (!empty($s['password'])): ?>
-        <input type="hidden" name="admin_password" value="<?= htmlspecialchars($_POST['admin_password'] ?? '') ?>">
+        <input type="hidden" name="admin_password" value="">
       <?php endif; ?>
-
-      <?php echo settings_form($s, ''); ?>
-
-      <div class="actions">
-        <button type="submit" class="btn btn-dark">Speichern</button>
-        <a href="index.php" target="_blank" class="preview-link">Timer öffnen ↗</a>
-      </div>
+      <button type="submit" class="btn btn-green btn-sm">+ Neues Profil</button>
     </form>
   </div>
 
-  <!-- ═══════════════ TAB: PROFILE ═══════════════ -->
-  <div class="tab-content <?= $active_tab==='profiles'||$edit_id ? 'active' : '' ?>">
-
-    <?php if ($edit_id && $edit_p): ?>
-      <!-- EDIT SINGLE PROFILE -->
-      <a href="admin.php?tab=profiles" class="back-link">← Zurück zu Profilen</a>
-      <form method="POST" enctype="multipart/form-data">
-        <input type="hidden" name="action" value="save_profile">
-        <input type="hidden" name="profile_id" value="<?= $edit_id ?>">
-        <?php if (!empty($s['password'])): ?>
-          <input type="hidden" name="admin_password" value="<?= htmlspecialchars($_POST['admin_password'] ?? '') ?>">
-        <?php endif; ?>
-
-        <div class="card">
-          <div class="card-title">Profilname</div>
-          <div class="field">
-            <input type="text" name="p_name" value="<?= htmlspecialchars($edit_p['name'] ?? '') ?>" placeholder="z.B. Edulab Workshop" autofocus>
-          </div>
+  <?php if (empty($profiles)): ?>
+    <div class="card" style="text-align:center;color:#aaa;padding:40px;">
+      Noch keine Profile. Klicke auf "+ Neues Profil".
+    </div>
+  <?php else: ?>
+    <div class="profile-list">
+    <?php foreach ($profiles as $pid => $p):
+      $isActive = ($s['active_id'] === $pid);
+    ?>
+      <div class="profile-item <?= $isActive ? 'active' : '' ?>">
+        <div class="p-dots">
+          <div class="p-dot" style="background:<?= htmlspecialchars($p['color_idle']??'#ccc') ?>"></div>
+          <div class="p-dot" style="background:<?= htmlspecialchars($p['color_warn']??'#ccc') ?>"></div>
+          <div class="p-dot" style="background:<?= htmlspecialchars($p['color_done']??'#ccc') ?>"></div>
         </div>
-
-        <?php echo settings_form($edit_p, 'p_'); ?>
-
-        <div class="actions">
-          <button type="submit" class="btn btn-dark">Profil speichern</button>
-          <a href="admin.php?tab=profiles" class="preview-link">Abbrechen</a>
+        <div class="p-info">
+          <div class="p-name"><?= htmlspecialchars($p['name'] ?? 'Profil') ?></div>
+          <div class="p-meta"><?= htmlspecialchars($p['title']??'') ?> · <?= htmlspecialchars($p['font']??'Inter') ?></div>
         </div>
-      </form>
-
-    <?php else: ?>
-      <!-- PROFILE LIST -->
-      <div style="margin-bottom:16px;">
-        <form method="POST">
-          <input type="hidden" name="action" value="new_profile">
-          <?php if (!empty($s['password'])): ?>
-            <input type="hidden" name="admin_password" value="<?= htmlspecialchars($_POST['admin_password'] ?? '') ?>">
+        <?php if ($isActive): ?><span class="p-badge">✓ Aktiv</span><?php endif; ?>
+        <div class="p-actions">
+          <?php if (!$isActive): ?>
+          <form method="POST">
+            <input type="hidden" name="action" value="activate">
+            <input type="hidden" name="profile_id" value="<?= $pid ?>">
+            <?php if (!empty($s['password'])): ?><input type="hidden" name="admin_password" value=""><?php endif; ?>
+            <button type="submit" class="btn btn-green btn-sm">Aktivieren</button>
+          </form>
           <?php endif; ?>
-          <button type="submit" class="btn btn-green">+ Neues Profil</button>
-        </form>
-      </div>
-
-      <?php if (empty($profiles)): ?>
-        <div class="card" style="text-align:center;color:#aaa;padding:40px;">
-          Noch keine Profile. Klicke auf "Neues Profil" um eines zu erstellen.
+          <a href="admin.php?edit=<?= $pid ?>" class="btn btn-outline btn-sm">Bearbeiten</a>
+          <form method="POST" onsubmit="return confirm('Profil wirklich loschen?')">
+            <input type="hidden" name="action" value="delete_profile">
+            <input type="hidden" name="profile_id" value="<?= $pid ?>">
+            <?php if (!empty($s['password'])): ?><input type="hidden" name="admin_password" value=""><?php endif; ?>
+            <button type="submit" class="btn btn-red btn-sm">×</button>
+          </form>
         </div>
-      <?php else: ?>
-        <div class="profile-list">
-          <?php foreach ($profiles as $pid => $p):
-            $isActive = (($p['color_idle']??'') === $s['color_idle']
-                      && ($p['title']??'') === $s['title']
-                      && ($p['color_warn']??'') === $s['color_warn']);
-          ?>
-          <div class="profile-item <?= $isActive ? 'is-active' : '' ?>">
-            <div class="profile-dots">
-              <div class="profile-dot" style="background:<?= htmlspecialchars($p['color_idle']??'#ccc') ?>"></div>
-              <div class="profile-dot" style="background:<?= htmlspecialchars($p['color_warn']??'#ccc') ?>"></div>
-              <div class="profile-dot" style="background:<?= htmlspecialchars($p['color_done']??'#ccc') ?>"></div>
-            </div>
-            <div class="profile-info">
-              <div class="profile-name"><?= htmlspecialchars($p['name'] ?? 'Profil') ?></div>
-              <div class="profile-meta"><?= htmlspecialchars($p['title']??'') ?> · <?= htmlspecialchars($p['font']??'Inter') ?></div>
-            </div>
-            <?php if ($isActive): ?><span class="active-badge">✓ Aktiv</span><?php endif; ?>
-            <div class="profile-actions">
-              <?php if (!$isActive): ?>
-              <form method="POST" style="display:inline;">
-                <input type="hidden" name="action" value="activate_profile">
-                <input type="hidden" name="profile_id" value="<?= $pid ?>">
-                <?php if (!empty($s['password'])): ?><input type="hidden" name="admin_password" value="<?= htmlspecialchars($_POST['admin_password'] ?? '') ?>"><?php endif; ?>
-                <button type="submit" class="btn btn-green btn-sm">Aktivieren</button>
-              </form>
-              <?php endif; ?>
-              <a href="admin.php?tab=profiles&edit=<?= $pid ?>" class="btn btn-outline btn-sm">Bearbeiten</a>
-              <form method="POST" style="display:inline;" onsubmit="return confirm('Profil wirklich loschen?')">
-                <input type="hidden" name="action" value="delete_profile">
-                <input type="hidden" name="profile_id" value="<?= $pid ?>">
-                <?php if (!empty($s['password'])): ?><input type="hidden" name="admin_password" value="<?= htmlspecialchars($_POST['admin_password'] ?? '') ?>"><?php endif; ?>
-                <button type="submit" class="btn btn-red btn-sm">Löschen</button>
-              </form>
-            </div>
-          </div>
-          <?php endforeach; ?>
-        </div>
-      <?php endif; ?>
-    <?php endif; ?>
-  </div>
-
-</div>
-<script>
-function syncPicker(val, pickerId) {
-  if (/^#[0-9a-fA-F]{6}$/.test(val)) {
-    document.getElementById(pickerId).value = val;
-  }
-}
-</script>
-</body>
-</html>
-<?php
-
-function settings_form($d, $p) {
-    $d = array_merge([
-        'title'=>'Timebox','font'=>'Inter','color_idle'=>'#1ac8a0',
-        'color_warn'=>'#e8833a','color_done'=>'#7c3aed','text_color'=>'#ffffff',
-        'default_sound'=>'gong','show_presets'=>true,'preset_times'=>[5,15,25,45,60],
-        'logo_path'=>''
-    ], $d);
-    $uid = str_replace('_','',uniqid());
-    ob_start(); ?>
-
-  <div class="card">
-    <div class="card-title">Branding</div>
-    <div class="field">
-      <label>App-Titel</label>
-      <input type="text" name="<?= $p ?>title" value="<?= htmlspecialchars($d['title']) ?>">
-    </div>
-    <div class="field">
-      <label>Logo</label>
-      <input type="file" name="<?= $p ?>logo" accept=".png,.jpg,.jpeg,.gif,.svg,.webp">
-      <?php if (!empty($d['logo_path'])): ?>
-      <div class="logo-preview" id="lp<?= $uid ?>">
-        <img src="<?= htmlspecialchars($d['logo_path']) ?>" alt="Logo">
-        <button type="button" class="rm-logo" onclick="document.getElementById('rl<?= $uid ?>').value='1';document.getElementById('lp<?= $uid ?>').remove();">✕ entfernen</button>
       </div>
-      <?php endif; ?>
-      <input type="hidden" name="<?= $p === 'p_' ? 'remove_profile_logo' : 'remove_logo' ?>" id="rl<?= $uid ?>" value="">
+    <?php endforeach; ?>
     </div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">Schrift & Ton</div>
-    <div class="field">
-      <label>Schriftart</label>
-      <select name="<?= $p ?>font">
-        <?php foreach (['Inter'=>'Modern (Inter)','Bebas Neue'=>'Block (Bebas Neue)','Space Mono'=>'Mono (Space Mono)','Syne'=>'Syne'] as $v=>$l): ?>
-        <option value="<?= $v ?>" <?= $d['font']===$v?'selected':'' ?>><?= $l ?></option>
-        <?php endforeach; ?>
-      </select>
-    </div>
-    <div class="field">
-      <label>Ton beim Ablauf</label>
-      <select name="<?= $p ?>default_sound">
-        <?php foreach (['gong'=>'Gong','bell'=>'Indian Bell','bowl'=>'Singing Bowl','off'=>'Kein Ton'] as $v=>$l): ?>
-        <option value="<?= $v ?>" <?= $d['default_sound']===$v?'selected':'' ?>><?= $l ?></option>
-        <?php endforeach; ?>
-      </select>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">Farben</div>
-    <div class="field">
-      <label>Schriftfarbe</label>
-      <div class="text-mode-row">
-        <label class="text-mode-label">
-          <input type="radio" name="<?= $p ?>text_color" value="#ffffff" <?= ($d['text_color']==='#ffffff')?'checked':'' ?>>
-          <span class="color-dot" style="background:#fff;"></span> Hell (weiss)
-        </label>
-        <label class="text-mode-label">
-          <input type="radio" name="<?= $p ?>text_color" value="#444444" <?= ($d['text_color']==='#444444')?'checked':'' ?>>
-          <span class="color-dot" style="background:#444;"></span> Dunkel (grau)
-        </label>
-      </div>
-    </div>
-    <div class="three-colors">
-      <?php foreach ([
-        [$p.'color_idle','ci'.$uid,'Grundfarbe',$d['color_idle']],
-        [$p.'color_warn','cw'.$uid,'Letzte Minute',$d['color_warn']],
-        [$p.'color_done','cd'.$uid,'Zeit abgelaufen',$d['color_done']],
-      ] as [$name,$id,$label,$val]): ?>
-      <div class="color-block">
-        <label><?= $label ?></label>
-        <input type="color" class="color-swatch" id="<?= $id ?>_p" value="<?= $val ?>"
-          oninput="document.getElementById('<?= $id ?>').value=this.value">
-        <input type="text" class="color-hex" name="<?= $name ?>" id="<?= $id ?>" value="<?= $val ?>"
-          oninput="syncPicker(this.value,'<?= $id ?>_p')">
-      </div>
-      <?php endforeach; ?>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">Timer-Optionen</div>
-    <div class="field">
-      <label class="check-row">
-        <input type="checkbox" name="<?= $p ?>show_presets" <?= $d['show_presets']?'checked':'' ?>>
-        Preset-Buttons anzeigen
-      </label>
-    </div>
-    <div class="field">
-      <label>Preset-Zeiten (Minuten, kommagetrennt)</label>
-      <input type="text" name="<?= $p ?>preset_times" value="<?= implode(',', $d['preset_times']) ?>">
-      <p class="hint">z.B. 5,15,25,45,60</p>
-    </div>
-  </div>
-
-  <?php if ($p === ''): ?>
-  <div class="card">
-    <div class="card-title">Sicherheit</div>
-    <div class="field">
-      <label>Admin-Passwort (leer = kein Schutz)</label>
-      <input type="password" name="password" value="<?= htmlspecialchars($d['password'] ?? '') ?>" placeholder="Passwort setzen...">
-      <p class="hint">Schutzt dieses Admin-Panel.</p>
-    </div>
-  </div>
   <?php endif; ?>
 
-    <?php return ob_get_clean();
-}
+  <!-- Passwort -->
+  <div class="card" style="margin-top:24px;">
+    <div class="card-title">Sicherheit</div>
+    <form method="POST">
+      <input type="hidden" name="action" value="save_password">
+      <div class="field">
+        <label>Admin-Passwort (leer = kein Schutz)</label>
+        <input type="password" name="new_password" value="<?= htmlspecialchars($s['password']) ?>" placeholder="Passwort setzen...">
+      </div>
+      <div class="actions"><button type="submit" class="btn btn-dark btn-sm">Passwort speichern</button></div>
+    </form>
+  </div>
+
+  <?php endif; ?>
+</div>
+</body>
+</html>
