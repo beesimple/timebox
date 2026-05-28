@@ -76,38 +76,31 @@ render:
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f0efeb; color: #1a1a1a; min-height: 100vh; padding: 40px 20px; }
-    .wrap { max-width: 580px; margin: 0 auto; }
+    .wrap { max-width: 600px; margin: 0 auto; }
     header { display: flex; align-items: center; margin-bottom: 32px; }
     header h1 { font-size: 20px; font-weight: 600; }
     header a { margin-left: auto; font-size: 13px; color: #888; text-decoration: none; }
     header a:hover { color: #333; }
-    .card { background: #fff; border-radius: 14px; border: 1px solid rgba(0,0,0,0.07); padding: 22px; margin-bottom: 14px; }
+    .card { background: #fff; border-radius: 14px; border: 1px solid rgba(0,0,0,0.07); padding: 24px; margin-bottom: 14px; }
     .card-title { font-size: 11px; font-weight: 600; color: #999; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 18px; }
-    .field { margin-bottom: 15px; }
+    .field { margin-bottom: 16px; }
     .field:last-child { margin-bottom: 0; }
     label { display: block; font-size: 13px; color: #555; margin-bottom: 6px; }
     input[type=text], input[type=password], select {
-      width: 100%; padding: 9px 12px; border-radius: 9px;
+      width: 100%; padding: 10px 12px; border-radius: 9px;
       border: 1px solid rgba(0,0,0,0.13); font-size: 14px;
       color: #1a1a1a; background: #fff; outline: none; transition: border-color 0.15s;
     }
     input:focus, select:focus { border-color: #888; }
-    .color-row { display: flex; align-items: center; gap: 10px; }
-    .color-row input[type=color] {
-      width: 42px; height: 38px; border-radius: 8px;
-      border: 1px solid rgba(0,0,0,0.13); padding: 3px; cursor: pointer; flex-shrink: 0;
-    }
-    .color-row input[type=text] { flex: 1; }
-    .three-colors { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
-    .color-block label { font-size: 12px; color: #777; margin-bottom: 5px; }
-    .color-block .color-row { flex-direction: column; align-items: flex-start; gap: 6px; }
-    .color-block .color-row input[type=color] { width: 100%; height: 44px; }
-    .color-block .color-row input[type=text] { width: 100%; }
+    .three-colors { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+    .color-block label { font-size: 12px; color: #777; margin-bottom: 6px; }
+    .color-swatch { width: 100%; height: 48px; border-radius: 9px; border: 1px solid rgba(0,0,0,0.1); cursor: pointer; margin-bottom: 6px; }
+    .color-hex { width: 100%; padding: 7px 10px; border-radius: 7px; border: 1px solid rgba(0,0,0,0.13); font-size: 13px; text-align: center; }
     .check-row { display: flex; align-items: center; gap: 10px; font-size: 14px; cursor: pointer; }
     .check-row input { width: 16px; height: 16px; cursor: pointer; }
     .hint { font-size: 11px; color: #bbb; margin-top: 4px; }
     .logo-preview { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
-    .logo-preview img { height: 36px; border-radius: 4px; border: 1px solid rgba(0,0,0,0.09); }
+    .logo-preview img { height: 40px; border-radius: 4px; border: 1px solid rgba(0,0,0,0.09); }
     .rm-logo { font-size: 12px; color: #c0392b; background: none; border: none; cursor: pointer; }
     .alert { padding: 12px 16px; border-radius: 9px; font-size: 14px; margin-bottom: 18px; }
     .ok { background: #e8f5e9; color: #2e7d32; }
@@ -117,6 +110,7 @@ render:
     .btn-save:hover { opacity: 0.8; }
     .btn-preview { font-size: 13px; color: #999; text-decoration: none; }
     .btn-preview:hover { color: #333; }
+    input[type=file] { font-size: 13px; color: #555; }
   </style>
 </head>
 <body>
@@ -130,6 +124,7 @@ render:
   <?php if ($error): ?><div class="alert err"><?= htmlspecialchars($error) ?></div><?php endif; ?>
 
   <form method="POST" enctype="multipart/form-data">
+
     <?php if (!empty($s['password'])): ?>
     <div class="card">
       <div class="card-title">Passwort</div>
@@ -147,14 +142,6 @@ render:
         <input type="text" name="title" value="<?= htmlspecialchars($s['title']) ?>">
       </div>
       <div class="field">
-        <label>Schriftart</label>
-        <select name="font">
-          <?php foreach (['Inter'=>'Modern (Inter)','Bebas Neue'=>'Block (Bebas Neue)','Space Mono'=>'Mono (Space Mono)','Syne'=>'Syne'] as $v=>$l): ?>
-          <option value="<?= $v ?>" <?= $s['font']===$v?'selected':'' ?>><?= $l ?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-      <div class="field">
         <label>Logo</label>
         <input type="file" name="logo" accept=".png,.jpg,.jpeg,.gif,.svg,.webp">
         <?php if (!empty($s['logo_path'])): ?>
@@ -168,28 +155,42 @@ render:
     </div>
 
     <div class="card">
+      <div class="card-title">Schrift & Ton</div>
+      <div class="field">
+        <label>Schriftart</label>
+        <select name="font">
+          <?php foreach (['Inter'=>'Modern (Inter)','Bebas Neue'=>'Block (Bebas Neue)','Space Mono'=>'Mono (Space Mono)','Syne'=>'Syne'] as $v=>$l): ?>
+          <option value="<?= $v ?>" <?= $s['font']===$v?'selected':'' ?>><?= $l ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="field">
+        <label>Ton beim Ablauf</label>
+        <select name="default_sound">
+          <?php foreach (['gong'=>'Gong','bell'=>'Indian Bell','bowl'=>'Singing Bowl','off'=>'Kein Ton'] as $v=>$l): ?>
+          <option value="<?= $v ?>" <?= $s['default_sound']===$v?'selected':'' ?>><?= $l ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+    </div>
+
+    <div class="card">
       <div class="card-title">Farben</div>
       <div class="three-colors">
         <div class="color-block">
           <label>Grundfarbe</label>
-          <div class="color-row">
-            <input type="color" value="<?= $s['color_idle'] ?>" oninput="document.getElementById('ci').value=this.value">
-            <input type="text" name="color_idle" id="ci" value="<?= $s['color_idle'] ?>">
-          </div>
+          <input type="color" class="color-swatch" value="<?= $s['color_idle'] ?>" oninput="document.getElementById('ci').value=this.value">
+          <input type="text" class="color-hex" name="color_idle" id="ci" value="<?= $s['color_idle'] ?>">
         </div>
         <div class="color-block">
           <label>Letzte Minute</label>
-          <div class="color-row">
-            <input type="color" value="<?= $s['color_warn'] ?>" oninput="document.getElementById('cw').value=this.value">
-            <input type="text" name="color_warn" id="cw" value="<?= $s['color_warn'] ?>">
-          </div>
+          <input type="color" class="color-swatch" value="<?= $s['color_warn'] ?>" oninput="document.getElementById('cw').value=this.value">
+          <input type="text" class="color-hex" name="color_warn" id="cw" value="<?= $s['color_warn'] ?>">
         </div>
         <div class="color-block">
           <label>Zeit abgelaufen</label>
-          <div class="color-row">
-            <input type="color" value="<?= $s['color_done'] ?>" oninput="document.getElementById('cd').value=this.value">
-            <input type="text" name="color_done" id="cd" value="<?= $s['color_done'] ?>">
-          </div>
+          <input type="color" class="color-swatch" value="<?= $s['color_done'] ?>" oninput="document.getElementById('cd').value=this.value">
+          <input type="text" class="color-hex" name="color_done" id="cd" value="<?= $s['color_done'] ?>">
         </div>
       </div>
     </div>
@@ -206,14 +207,6 @@ render:
         <label>Preset-Zeiten (Minuten, kommagetrennt)</label>
         <input type="text" name="preset_times" value="<?= implode(',', $s['preset_times']) ?>">
         <p class="hint">z.B. 5,15,25,45,60</p>
-      </div>
-      <div class="field">
-        <label>Standard-Ton</label>
-        <select name="default_sound">
-          <?php foreach (['gong'=>'Gong','bell'=>'Indian Bell','bowl'=>'Singing Bowl','off'=>'Kein Ton'] as $v=>$l): ?>
-          <option value="<?= $v ?>" <?= $s['default_sound']===$v?'selected':'' ?>><?= $l ?></option>
-          <?php endforeach; ?>
-        </select>
       </div>
     </div>
 
