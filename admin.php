@@ -103,8 +103,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'save_profile') {
         $name = trim($_POST['profile_name'] ?? '');
         if ($name === '') { $error = 'Profilname darf nicht leer sein.'; goto render; }
+
+        // First: save current form values to settings (same as save_settings)
+        $logo_path = $s['logo_path'];
+        if (!empty($_FILES['logo']['name']) && $_FILES['logo']['error'] === UPLOAD_ERR_OK) {
+            $ext = strtolower(pathinfo($_FILES['logo']['name'], PATHINFO_EXTENSION));
+            if (in_array($ext, ['jpg','jpeg','png','gif','svg','webp'])) {
+                if (!is_dir('uploads')) mkdir('uploads', 0755, true);
+                $fn = 'uploads/' . preg_replace('/[^a-zA-Z0-9._-]/', '_', basename($_FILES['logo']['name']));
+                if (move_uploaded_file($_FILES['logo']['tmp_name'], $fn)) $logo_path = $fn;
+            }
+        }
+        if (!empty($_POST['remove_logo'])) $logo_path = '';
+        $raw = $_POST['preset_times'] ?? '5,15,25,45,60';
+        $pts = array_values(array_filter(array_map('intval', explode(',', $raw))));
+        if (empty($pts)) $pts = [5,15,25,45,60];
+        $current = [
+            'title'         => trim($_POST['title'] ?? 'Timebox'),
+            'font'          => $_POST['font'] ?? 'Inter',
+            'color_idle'    => $_POST['color_idle'] ?? '#1ac8a0',
+            'color_warn'    => $_POST['color_warn'] ?? '#e8833a',
+            'color_done'    => $_POST['color_done'] ?? '#7c3aed',
+            'text_color'    => $_POST['text_color'] ?? '#ffffff',
+            'default_sound' => $_POST['default_sound'] ?? 'gong',
+            'show_presets'  => isset($_POST['show_presets']),
+            'preset_times'  => $pts,
+            'logo_path'     => $logo_path,
+            'password'      => $s['password'],
+        ];
+        save_settings($current);
+        $s = $current;
+
+        // Then: save as profile
         $id = 'p_' . time() . '_' . rand(100,999);
-        $profile = $s;
+        $profile = $current;
         $profile['name'] = $name;
         unset($profile['password']);
         $profiles[$id] = $profile;
@@ -300,7 +332,6 @@ $edit_profile = ($edit_id && isset($profiles[$edit_id])) ? $profiles[$edit_id] :
   <!-- TAB: SETTINGS -->
   <div id="tab-settings" class="tab-content <?= !$edit_id ? 'active' : '' ?>">
     <form method="POST" enctype="multipart/form-data">
-      <input type="hidden" name="action" value="save_settings">
       <?php if (!empty($s['password'])): ?>
         <input type="hidden" name="admin_password" value="<?= htmlspecialchars($_POST['admin_password'] ?? '') ?>">
       <?php endif; ?>
@@ -405,25 +436,22 @@ $edit_profile = ($edit_id && isset($profiles[$edit_id])) ? $profiles[$edit_id] :
       </div>
 
       <div class="actions">
-        <button type="submit" class="btn btn-dark">Speichern</button>
+        <button type="submit" name="action" value="save_settings" class="btn btn-dark">Speichern</button>
         <a href="index.php" target="_blank" class="preview-link">Timer öffnen ↗</a>
       </div>
-    </form>
 
-    <!-- Save current as profile -->
-    <div class="card" style="margin-top:14px;">
-      <div class="card-title">Aktuelle Einstellungen als Profil speichern</div>
-      <form method="POST">
-        <input type="hidden" name="action" value="save_profile">
-        <?php if (!empty($s['password'])): ?>
-          <input type="hidden" name="admin_password" value="<?= htmlspecialchars($_POST['admin_password'] ?? '') ?>">
-        <?php endif; ?>
+      <div class="card" style="margin-top:14px;">
+        <div class="card-title">Aktuelle Einstellungen als Profil speichern</div>
         <div class="save-profile-row">
-          <input type="text" name="profile_name" placeholder="Profilname z.B. «Edulab Workshop»" required>
-          <button type="submit" class="btn btn-green">Als Profil speichern</button>
+          <input type="text" name="profile_name" placeholder="Profilname z.B. Edulab Workshop">
+          <button type="submit" name="action" value="save_profile" class="btn btn-green"
+            onclick="if(!document.querySelector('[name=profile_name]').value.trim()){alert('Bitte Profilname eingeben.');return false;}">
+            Als Profil speichern
+          </button>
         </div>
-      </form>
-    </div>
+        <p class="hint" style="margin-top:8px;">Speichert alle obigen Einstellungen als neues Profil.</p>
+      </div>
+    </form>
   </div>
 
   <!-- TAB: PROFILES -->
