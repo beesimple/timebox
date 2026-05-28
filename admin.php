@@ -84,8 +84,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $data['logo_path'] = $logo ?? (empty($_POST['remove_logo']) ? $s['logo_path'] : '');
         $data['password']  = $_POST['password'] ?? $s['password'];
         save_settings($data);
-        $s = array_merge($s, $data);
-        $success = 'Einstellungen gespeichert.';
+        header('Location: admin.php?tab=settings&saved=1');
+        exit;
     }
 
     // ── NEW EMPTY PROFILE ─────────────────────────────────────────
@@ -122,9 +122,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $data = array_merge(defaults(), $profiles[$id]);
             $data['password'] = $s['password'];
             save_settings($data);
-            $s = $data;
-            $success = 'Profil aktiviert.';
         }
+        header('Location: admin.php?tab=profiles&saved=1');
+        exit;
     }
 
     // ── DELETE PROFILE ────────────────────────────────────────────
@@ -133,8 +133,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isset($profiles[$id])) {
             unset($profiles[$id]);
             save_profiles($profiles);
-            $success = 'Profil geloscht.';
         }
+        header('Location: admin.php?tab=profiles');
+        exit;
     }
 
     $profiles = load_profiles();
@@ -144,7 +145,9 @@ render:
 $active_tab = $_GET['tab'] ?? 'settings';
 $edit_id    = $_GET['edit'] ?? null;
 $edit_p     = ($edit_id && isset($profiles[$edit_id])) ? $profiles[$edit_id] : null;
-if ($_GET['saved'] ?? false) $success = 'Profil gespeichert.';
+if ($_GET['saved'] ?? false) {
+    $success = $active_tab === 'profiles' ? 'Profil gespeichert.' : 'Einstellungen gespeichert.';
+}
 ?>
 <!DOCTYPE html>
 <html lang="de">
