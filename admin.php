@@ -38,12 +38,24 @@ function save_settings($data) {
 }
 
 function upload_logo($file_key) {
-    if (empty($_FILES[$file_key]['name']) || $_FILES[$file_key]['error'] !== UPLOAD_ERR_OK) return null;
+    if (empty($_FILES[$file_key]['name'])) return null;
+    $err = $_FILES[$file_key]['error'];
+    if ($err !== UPLOAD_ERR_OK) {
+        // Debug: write error to a log
+        $codes = [1=>'zu gross (php.ini)',2=>'zu gross (form)',3=>'unvollstaendig',4=>'keine Datei',6=>'kein tmp',7=>'Schreibfehler'];
+        file_put_contents('upload_debug.txt', date('H:i:s') . ' Fehler: ' . ($codes[$err] ?? $err) . "\n", FILE_APPEND);
+        return null;
+    }
     $ext = strtolower(pathinfo($_FILES[$file_key]['name'], PATHINFO_EXTENSION));
-    if (!in_array($ext, ['jpg','jpeg','png','gif','svg','webp'])) return null;
+    if (!in_array($ext, ['jpg','jpeg','png','gif','svg','webp'])) {
+        file_put_contents('upload_debug.txt', date('H:i:s') . ' Falsches Format: ' . $ext . "\n", FILE_APPEND);
+        return null;
+    }
     if (!is_dir('uploads')) mkdir('uploads', 0755, true);
     $fn = 'uploads/' . preg_replace('/[^a-zA-Z0-9._-]/', '_', basename($_FILES[$file_key]['name']));
-    return move_uploaded_file($_FILES[$file_key]['tmp_name'], $fn) ? $fn : null;
+    $ok = move_uploaded_file($_FILES[$file_key]['tmp_name'], $fn);
+    file_put_contents('upload_debug.txt', date('H:i:s') . ' Upload ' . ($ok ? 'OK: '.$fn : 'FEHLER') . "\n", FILE_APPEND);
+    return $ok ? $fn : null;
 }
 
 function fields_from_post($prefix = '') {
