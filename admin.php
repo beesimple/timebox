@@ -100,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         unset($profile['password']);
         $profiles[$id] = $profile;
         save_profiles($profiles);
-        $success = "Profil „{$name}" gespeichert.";
+        $success = 'Profil ' . $name . ' gespeichert.';
     }
 
     // ── ACTIVATE PROFILE ─────────────────────────────────────────
@@ -111,7 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $new['password'] = $s['password']; // keep password
             save_settings($new);
             $s = $new;
-            $success = "Profil „{$profiles[$id]['name']}" aktiviert.";
+            $success = 'Profil ' . $profiles[$id]['name'] . ' aktiviert.';
         }
     }
 
@@ -122,7 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $name = $profiles[$id]['name'];
             unset($profiles[$id]);
             save_profiles($profiles);
-            $success = "Profil „{$name}" gelöscht.";
+            $success = 'Profil ' . $name . ' geloescht.';
         }
     }
 
@@ -156,7 +156,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'logo_path'     => $logo_path,
             ]);
             save_profiles($profiles);
-            $success = "Profil „{$profiles[$id]['name']}" aktualisiert.";
+            $success = 'Profil ' . $profiles[$id]['name'] . ' aktualisiert.';
         }
     }
 
