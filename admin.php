@@ -1,4 +1,9 @@
 <?php
+session_set_cookie_params([
+    'httponly' => true,
+    'secure'   => !empty($_SERVER['HTTPS']),
+    'samesite' => 'Lax',
+]);
 session_start();
 
 function defaults() {
@@ -38,6 +43,18 @@ function save_settings($d) {
     file_put_contents('settings.json', json_encode($d, JSON_PRETTY_PRINT));
 }
 
+// Supports hashed passwords and upgrades a legacy plaintext password on first successful login.
+function verify_admin_password($input, $s) {
+    $stored = $s['password'];
+    if (password_get_info($stored)['algo'] !== null) {
+        return password_verify($input, $stored);
+    }
+    if (!hash_equals($stored, $input)) return false;
+    $s['password'] = password_hash($input, PASSWORD_DEFAULT);
+    save_settings($s);
+    return true;
+}
+
 function upload_logo($key) {
     if (empty($_FILES[$key]['name']) || $_FILES[$key]['error'] !== UPLOAD_ERR_OK) return false;
     $ext = strtolower(pathinfo($_FILES[$key]['name'], PATHINFO_EXTENSION));
@@ -71,9 +88,31 @@ $msg      = '';
 $err      = '';
 $action   = $_POST['action'] ?? '';
 
+if (isset($_GET['logout'])) {
+    $_SESSION = [];
+    session_destroy();
+    header('Location: admin.php');
+    exit;
+}
+
+$_SESSION['csrf'] ??= bin2hex(random_bytes(16));
+$csrf         = $_SESSION['csrf'];
+$is_logged_in = empty($s['password']) || !empty($_SESSION['tb_admin']);
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!empty($s['password']) && ($_POST['admin_password'] ?? '') !== $s['password']) {
+    if ($action === 'login') {
+        if (!empty($s['password']) && verify_admin_password($_POST['admin_password'] ?? '', $s)) {
+            session_regenerate_id(true);
+            $_SESSION['tb_admin'] = true;
+            header('Location: admin.php');
+            exit;
+        }
         $err = 'Falsches Passwort.';
+        goto render;
+    }
+    if (!$is_logged_in) goto render;
+    if (!hash_equals($csrf, $_POST['csrf'] ?? '')) {
+        $err = 'Sitzung abgelaufen. Bitte nochmals versuchen.';
         goto render;
     }
 
@@ -142,8 +181,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Passwort ändern
     if ($action === 'save_password') {
-        $s['password'] = $_POST['new_password'] ?? '';
+        $new_password = $_POST['new_password'] ?? '';
+        if ($new_password === '') { $err = 'Bitte ein Passwort eingeben.'; goto render; }
+        $s['password'] = password_hash($new_password, PASSWORD_DEFAULT);
         save_settings($s);
+        $_SESSION['tb_admin'] = true;
         header('Location: admin.php?saved=1');
         exit;
     }
@@ -152,6 +194,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 render:
 $s        = load_settings();
 $profiles = load_profiles();
+$show_login = empty($_SESSION['tb_admin']) && !empty($s['password']);
 $edit_id  = $_GET['edit'] ?? null;
 $edit_p   = ($edit_id && isset($profiles[$edit_id])) ? $profiles[$edit_id] : null;
 if ($_GET['saved'] ?? false)     $msg = 'Gespeichert.';
@@ -229,20 +272,35 @@ if ($_GET['activated'] ?? false) $msg = 'Profil aktiviert – Timer läuft jetzt
   <header>
     <h1>⚙ Admin</h1>
     <a href="index.php">← Zum Timer</a>
+    <?php if (!$show_login && !empty($s['password'])): ?>
+      <a href="admin.php?logout=1" style="margin-left:16px;">Abmelden</a>
+    <?php endif; ?>
   </header>
 
   <?php if ($msg): ?><div class="alert-ok">✓ <?= htmlspecialchars($msg) ?></div><?php endif; ?>
   <?php if ($err): ?><div class="alert-err">✗ <?= htmlspecialchars($err) ?></div><?php endif; ?>
 
-  <?php if ($edit_id && $edit_p): ?>
+  <?php if ($show_login): ?>
+  <!-- ══════════════ LOGIN ══════════════ -->
+  <div class="card">
+    <div class="card-title">Anmelden</div>
+    <form method="POST">
+      <input type="hidden" name="action" value="login">
+      <div class="field">
+        <label for="admin_password">Admin-Passwort</label>
+        <input type="password" id="admin_password" name="admin_password" autocomplete="current-password" autofocus required>
+      </div>
+      <div class="actions"><button type="submit" class="btn btn-dark btn-sm">Anmelden</button></div>
+    </form>
+  </div>
+
+  <?php elseif ($edit_id && $edit_p): ?>
   <!-- ══════════════ PROFIL BEARBEITEN ══════════════ -->
   <a href="admin.php" class="back-link">← Zurück</a>
   <form method="POST" enctype="multipart/form-data">
     <input type="hidden" name="action" value="save_profile">
     <input type="hidden" name="profile_id" value="<?= $edit_id ?>">
-    <?php if (!empty($s['password'])): ?>
-      <input type="hidden" name="admin_password" value="">
-    <?php endif; ?>
+    <input type="hidden" name="csrf" value="<?= $csrf ?>">
 
     <div class="card">
       <div class="card-title">Profilname</div>
@@ -350,9 +408,7 @@ if ($_GET['activated'] ?? false) $msg = 'Profil aktiviert – Timer läuft jetzt
     <div style="font-size:15px;font-weight:600;">Profile</div>
     <form method="POST">
       <input type="hidden" name="action" value="new_profile">
-      <?php if (!empty($s['password'])): ?>
-        <input type="hidden" name="admin_password" value="">
-      <?php endif; ?>
+      <input type="hidden" name="csrf" value="<?= $csrf ?>">
       <button type="submit" class="btn btn-green btn-sm">+ Neues Profil</button>
     </form>
   </div>
@@ -382,7 +438,7 @@ if ($_GET['activated'] ?? false) $msg = 'Profil aktiviert – Timer läuft jetzt
           <form method="POST">
             <input type="hidden" name="action" value="activate">
             <input type="hidden" name="profile_id" value="<?= $pid ?>">
-            <?php if (!empty($s['password'])): ?><input type="hidden" name="admin_password" value=""><?php endif; ?>
+            <input type="hidden" name="csrf" value="<?= $csrf ?>">
             <button type="submit" class="btn btn-green btn-sm">Aktivieren</button>
           </form>
           <?php endif; ?>
@@ -390,7 +446,7 @@ if ($_GET['activated'] ?? false) $msg = 'Profil aktiviert – Timer läuft jetzt
           <form method="POST" onsubmit="return confirm('Profil wirklich loschen?')">
             <input type="hidden" name="action" value="delete_profile">
             <input type="hidden" name="profile_id" value="<?= $pid ?>">
-            <?php if (!empty($s['password'])): ?><input type="hidden" name="admin_password" value=""><?php endif; ?>
+            <input type="hidden" name="csrf" value="<?= $csrf ?>">
             <button type="submit" class="btn btn-red btn-sm">×</button>
           </form>
         </div>
@@ -404,9 +460,10 @@ if ($_GET['activated'] ?? false) $msg = 'Profil aktiviert – Timer läuft jetzt
     <div class="card-title">Sicherheit</div>
     <form method="POST">
       <input type="hidden" name="action" value="save_password">
+      <input type="hidden" name="csrf" value="<?= $csrf ?>">
       <div class="field">
-        <label>Admin-Passwort (leer = kein Schutz)</label>
-        <input type="password" name="new_password" value="<?= htmlspecialchars($s['password']) ?>" placeholder="Passwort setzen...">
+        <label for="new_password">Admin-Passwort <?= empty($s['password']) ? 'setzen' : 'ändern' ?></label>
+        <input type="password" id="new_password" name="new_password" autocomplete="new-password" placeholder="Neues Passwort..." required>
       </div>
       <div class="actions"><button type="submit" class="btn btn-dark btn-sm">Passwort speichern</button></div>
     </form>

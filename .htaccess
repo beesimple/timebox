@@ -1,0 +1,4 @@
+# Settings and profiles contain the admin password hash: never serve them.
+<FilesMatch "\.json$">
+  Require all denied
+</FilesMatch>
